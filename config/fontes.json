@@ -1,0 +1,37 @@
+[
+  {
+    "id": "anatel", "nome": "Anatel", "rss": "https://www.gov.br/anatel/pt-br/assuntos/noticias/RSS",
+    "busca": "site:gov.br/anatel (resolução OR regulamento OR consulta pública OR autorização OR concessão OR telecomunicações)",
+    "dominios": ["www.gov.br", "informacoes.anatel.gov.br"], "setores": [1]
+  },
+  {
+    "id": "antt", "nome": "ANTT", "rss": "https://www.gov.br/antt/pt-br/assuntos/ultimas-noticias-antt/RSS",
+    "busca": "site:gov.br/antt (resolução OR ferrovia OR rodovia OR concessão OR transporte OR regulação)",
+    "dominios": ["www.gov.br", "anttlegis.antt.gov.br"], "setores": [2,3]
+  },
+  {
+    "id": "anac", "nome": "ANAC", "rss": "https://www.gov.br/anac/pt-br/noticias/RSS",
+    "busca": "site:gov.br/anac (resolução OR aeroporto OR serviços aéreos OR regulamento OR concessão OR autorização)",
+    "dominios": ["www.gov.br", "www.anac.gov.br"], "setores": [4,5]
+  },
+  {
+    "id": "aneel", "nome": "ANEEL", "rss": "https://www.gov.br/aneel/pt-br/assuntos/noticias/RSS",
+    "busca": "site:gov.br/aneel (resolução OR normativa OR consulta pública OR geração OR transmissão OR distribuição OR comercialização)",
+    "dominios": ["www.gov.br"], "setores": [6]
+  },
+  {
+    "id": "anp", "nome": "ANP", "rss": "https://www.gov.br/anp/pt-br/canais_atendimento/imprensa/noticias-comunicados/RSS",
+    "busca": "site:gov.br/anp (resolução OR gás natural OR petróleo OR gasoduto OR licitação OR autorização)",
+    "dominios": ["www.gov.br"], "setores": [7,8,9]
+  },
+  {
+    "id": "infra", "nome": "Agência iNFRA", "rss": "https://agenciainfra.com/blog/feed/",
+    "busca": "site:agenciainfra.com/blog (regulação OR concessão OR agência OR resolução OR energia OR rodovia OR ferrovia)",
+    "dominios": ["agenciainfra.com", "www.agenciainfra.com"], "setores": [1,2,3,4,5,6,7,8,9]
+  },
+  {
+    "id": "dou", "nome": "Diário Oficial da União (busca)", "rss": null,
+    "busca": "site:in.gov.br (ANATEL OR ANTT OR ANAC OR ANEEL OR ANP) (resolução OR portaria OR decreto)",
+    "dominios": ["www.in.gov.br", "in.gov.br"], "setores": [1,2,3,4,5,6,7,8,9]
+  }
+]
