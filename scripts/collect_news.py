@@ -20,8 +20,9 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit, urljoin
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,8 @@ HEADERS = {
 MAX_AGE_DAYS = 150
 MAX_PER_SOURCE = 15
 MAX_TOTAL = 70
+# HTML de manchetes publicado por fontes oficiais; nunca é obrigatório para a coleta.
+MAX_OG_PER_SOURCE = 5
 KEYWORDS = (
     'resoluc', 'normativ', 'regulament', 'legisl', 'decreto', 'portaria',
     'consulta publica', 'audiencia publica', 'concess', 'autoriz', 'outorga',
@@ -45,13 +48,13 @@ KEYWORDS = (
 SECTOR_KEYWORDS = {
     1: ('anatel', 'telecom', 'telefonia', 'banda larga', 'espectro', '5g', 'radiofrequencia'),
     2: ('ferrovi', 'trem', 'trilho', 'malha ferrovi', 'atf', 'ferrovia'),
-    3: ('rodovi', 'pedagio', 'onibus', 'fretamento', 'frete', 'caminhao', 'br-', 'antt'),
+    3: ('rodovi', 'pedagio', 'onibus', 'fretamento', 'frete rodoviario', 'caminhao', 'br-'),
     4: ('aeroporto', 'aerodromo', 'infraestrutura aeroportuaria'),
     5: ('aviacao', 'aereo', 'aerea', 'aeronave', 'companhia aerea', 'voo', 'passageiros aereos'),
     6: ('aneel', 'eletric', 'energia', 'geracao', 'transmissao', 'distribuicao', 'comercializacao'),
     7: ('petroleo', 'combustiv', 'refin', 'oleo', 'pre sal', 'exploracao e producao'),
-    8: ('gasoduto', 'transporte de gas', 'gas natural', 'transportador', 'capacidade de transporte'),
-    9: ('gas natural', 'gnl', 'estocagem', 'regaseific', 'liquefac', 'processamento de gas'),
+    8: ('gasoduto', 'transporte de gas', 'transportador de gas', 'capacidade de transporte', 'malha de transporte de gas'),
+    9: ('gnl', 'estocagem', 'regaseific', 'liquefac', 'processamento de gas', 'acondicionamento de gas'),
 }
 TERM_AREAS = {
     'Licitação e outorga': ('licitacao', 'leilao', 'outorga', 'concessao', 'autorizacao', 'permissao', 'edital'),
@@ -123,6 +126,59 @@ def date_iso(raw: str):
     return dt.astimezone(timezone.utc).isoformat(timespec='seconds')
 
 
+class ArticleMetaParser(HTMLParser):
+    """Lê somente metadados de prévia publicados pela fonte, sem copiar o artigo."""
+    def __init__(self):
+        super().__init__()
+        self.image = ''
+        self.description = ''
+
+    def handle_starttag(self, t, attrs):
+        if t.lower() != 'meta':
+            return
+        d = dict(attrs)
+        key = (d.get('property') or d.get('name') or '').lower()
+        value = d.get('content', '')
+        if key in ('og:image', 'twitter:image', 'twitter:image:src') and not self.image:
+            self.image = value
+        elif key in ('og:description', 'description') and not self.description:
+            self.description = safe_text(value)[:140]
+
+
+def og_preview(source: dict, article_url: str, getter=fetch):
+    """Prévia opcional para links diretos em domínios públicos configurados."""
+    target = urlsplit(article_url)
+    host = (target.hostname or '').lower()
+    allowed = source.get('dominios', [])
+    if not host or not any(host == d or host.endswith('.' + d) for d in allowed):
+        return '', ''
+    if host in ('news.google.com',):
+        return '', ''
+    try:
+        payload = getter(article_url)
+        if len(payload) > 650_000:
+            payload = payload[:650_000]
+        meta = ArticleMetaParser()
+        meta.feed(payload.decode('utf-8', errors='replace'))
+        return safe_url(urljoin(article_url, meta.image)) if meta.image else '', meta.description
+    except (ValueError, UnicodeError, OSError, RuntimeError, TimeoutError):
+        return '', ''
+
+
+def feed_image(node):
+    for el in node.iter():
+        name = tag(el)
+        typ = el.attrib.get('type', '').lower()
+        candidate = el.attrib.get('url', '') or el.attrib.get('href', '')
+        if name in ('thumbnail', 'image') and candidate:
+            if safe_url(candidate):
+                return safe_url(candidate)
+        if name in ('enclosure', 'content') and candidate and (typ.startswith('image/') or re.search(r'\.(?:png|jpe?g|webp)(?:[?#]|$)', candidate, re.I)):
+            if safe_url(candidate):
+                return safe_url(candidate)
+    return ''
+
+
 def parse_feed(payload: bytes):
     root = ET.fromstring(payload)
     if tag(root) not in ('rss', 'rdf', 'feed'):
@@ -140,7 +196,9 @@ def parse_feed(payload: bytes):
         date = (child_text(node, 'pubdate') or child_text(node, 'published')
                 or child_text(node, 'updated') or child_text(node, 'date'))
         if title and safe_url(link):
-            result.append({'title': title, 'url': safe_url(link), 'date': date_iso(date)})
+            result.append({'title': title, 'url': safe_url(link), 'date': date_iso(date),
+                           'image': feed_image(node),
+                           'description': safe_text(child_text(node, 'description') or child_text(node, 'summary'))[:140]})
     return result
 
 
@@ -158,19 +216,26 @@ def classify_status(title: str) -> str:
 
 
 def classify_sectors(source: dict, title: str) -> list[int]:
+    """Nunca atribui a todos os setores uma manchete sem tema reconhecível."""
     text = norm(title)
     match = [n for n in source['setores'] if any(term in text for term in SECTOR_KEYWORDS[n])]
     if source['id'] == 'antt':
-        # Se há referência inequívoca a ferrovia, não rotular como rodovia só por citar ANTT.
-        if 2 in match and not any(x in text for x in ('rodovi', 'onibus', 'pedagio', 'caminhao')):
-            match = [2]
-        elif 3 in match and not any(x in text for x in ('ferrovi', 'trilho', 'malha ferrovi')):
-            match = [3]
-    if source['id'] == 'anp' and match:
-        if 7 in match and ('gas natural' in text or 'gasoduto' in text):
-            match.remove(7)
-    # Uma notícia generalista de agência pode repercutir em mais de um subsetor.
-    return match or source['setores']
+        ferro = 2 in match
+        rodo = 3 in match
+        return ([2] if ferro else []) + ([3] if rodo else [])
+    if source['id'] == 'anp':
+        # "gás natural" isolado não basta para decidir entre transporte e estocagem.
+        gas = 'gas natural' in text
+        specific = [n for n in match if n in (8, 9)]
+        if specific:
+            return specific
+        if gas and not any(t in text for t in ('petroleo', 'combustiv', 'refin', 'pre sal')):
+            return []
+        return [7] if 7 in match else []
+    if len(source['setores']) == 1:
+        return source['setores']
+    # Publicações amplas de agência/veículo ficam em "Todos" até identificarmos setor.
+    return match
 
 
 def areas(title: str) -> list[str]:
@@ -209,6 +274,7 @@ def collect_source(source: dict, *, getter=fetch, now: datetime | None = None):
             logs.append(f'Busca indisponível ({type(exc).__name__})')
     result = []
     seen = set()
+    og_tries = 0
     for item in data:
         if not relevant(item['title']) or item['url'] in seen:
             continue
@@ -219,9 +285,20 @@ def collect_source(source: dict, *, getter=fetch, now: datetime | None = None):
                 continue
         seen.add(item['url'])
         key = hashlib.sha256(item['url'].encode('utf-8')).hexdigest()[:14]
+        img = item.get('image') or ''
+        excerpt = item.get('description') or ''
+        if not img and og_tries < MAX_OG_PER_SOURCE:
+            # Evita buscas adicionais a páginas intermediárias do Google Notícias.
+            host = (urlsplit(item['url']).hostname or '').lower()
+            if any(host == d or host.endswith('.' + d) for d in source.get('dominios', [])):
+                og_tries += 1
+                img, og_excerpt = og_preview(source, item['url'], getter=getter)
+                excerpt = excerpt or og_excerpt
         result.append({
             'id': key,
             'titulo': item['title'][:210],
+            'imagem': safe_url(img) if img else '',
+            'descricao': excerpt[:140],
             'url': item['url'],
             'publicado_em': date,
             'fonte': source['nome'],

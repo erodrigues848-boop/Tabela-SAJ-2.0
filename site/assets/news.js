@@ -1,89 +1,169 @@
-/* Renderizador seguro: somente campos de texto e links HTTPS, sem injetar HTML remoto. */
+/* Painel SAJ: manchetes com imagens públicas de RSS/OG e filtros independentes. */
 (()=>{
   'use strict';
   const cards=document.getElementById('news-list');
+  if(!cards)return;
   const msg=document.getElementById('live-news-status');
   const health=document.getElementById('feed-health');
   const updated=document.getElementById('news-updated');
-  const kind=document.getElementById('news-kind');
+  const typeSelect=document.getElementById('news-kind');
   const reload=document.getElementById('news-reload');
-  if(!cards)return;
-  const select=document.getElementById('news-kind');
-  window.SAJNewsPredicate=(el)=>!select?.value || el.dataset.status===select.value;
-  const plain=(v)=>String(v??'').trim();
-  const norm=(v)=>plain(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const friendlyDate=(str)=>{
-    if(!str)return 'Data não informada';
-    const dt=new Date(str);
-    return isNaN(dt.getTime())?'Data não informada':new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'America/Sao_Paulo'}).format(dt);
+  const sectorButtons=[...document.querySelectorAll('.news-filter[data-sector]')];
+  const globalSearch=document.getElementById('q');
+  const sectorNames={1:'Telecom',2:'Ferrovias',3:'Rodovias',4:'Aeroportos',5:'Serviços aéreos',6:'Energia',7:'Petróleo',8:'Gás · transporte',9:'Gás · outras atividades'};
+  let stories=[];
+  let allLoaded=false;
+
+  const str=v=>String(v??'').trim();
+  const normal=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const https=u=>{try{const v=new URL(u);return v.protocol==='https:'?v.href:null;}catch{return null;}};
+  const dmy=d=>{
+    if(!d)return 'Sem data';const date=new Date(d);
+    return Number.isNaN(date.getTime())?'Sem data':new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short',year:'numeric',timeZone:'America/Sao_Paulo'}).format(date);
   };
-  const linkURL=(str)=>{
-    try {const u=new URL(str);return u.protocol==='https:'?u.href:null;}catch{return null;}
-  };
-  function add(parent,tag,klass,value){
-    const el=document.createElement(tag);if(klass)el.className=klass;
-    if(value!==undefined)el.textContent=plain(value);
-    parent.appendChild(el);return el;
+  function make(parent,tag,cls,txt){
+    const n=document.createElement(tag);if(cls)n.className=cls;
+    if(txt!==undefined)n.textContent=str(txt);
+    parent.appendChild(n);return n;
   }
-  function empty(text){cards.replaceChildren();add(cards,'div','live-news-empty',text);}
-  function render(data){
-    const news=Array.isArray(data.noticias)?data.noticias:[];
-    cards.replaceChildren();
-    for(const item of news){
-      const url=linkURL(item.url);if(!url||!item.titulo)continue;
-      const sections=Array.isArray(item.setores)?item.setores.map(Number).filter(Number.isFinite):[];
-      const card=add(cards,'article','news-card');
-      // For a multi-setor article, allow it in each matching filter.
-      card.dataset.setores=sections.join(',');
-      card.dataset.sector=String(sections[0]||0);
-      card.dataset.status=plain(item.categoria);
-      card.dataset.search=norm([item.titulo,item.fonte,item.categoria,...(item.temas||[]),...sections].join(' '));
-      const meta=add(card,'div','news-meta');
-      add(meta,'span','news-status',item.categoria||'Notícia');
-      add(meta,'time','',friendlyDate(item.publicado_em));
-      add(card,'h3','',item.titulo);
-      add(card,'p','news-area','Possível tema na tabela: '+(Array.isArray(item.temas)?item.temas.join(' · '):'Acompanhamento geral'));
-      if(item.canal?.includes('Google')) add(card,'p','news-tipo','Fonte encontrada em agregador; confirme a publicação original.');
-      add(card,'p','news-impact','Notícia para triagem jurídica; não comprova vigência.');
-      const row=add(card,'div','news-source');
-      add(row,'span','',item.fonte||'Fonte pública');
-      const a=add(row,'a','', 'Abrir publicação ↗');
-      a.href=url;a.target='_blank';a.rel='noopener noreferrer';
+  function anchor(parent,cls,title,url){
+    const a=make(parent,'a',cls,title);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;
+  }
+  function brandName(fonte){
+    return str(fonte).replace(/^Diário Oficial da União.*$/,'DOU').replace(/^Agência iNFRA$/,'iNFRA').slice(0,24)||'NOTÍCIA';
+  }
+  function searchLabel(story){
+    return normal([story.titulo,story.fonte,story.categoria,story.descricao, ...(story.temas||[]),...(story.setores||[]).map(i=>sectorNames[i]||'')].join(' '));
+  }
+  function createStory(story){
+    const url=https(story.url);if(!url||!story.titulo)return null;
+    const sectors=(Array.isArray(story.setores)?story.setores:[]).map(Number).filter(i=>i>=1&&i<=9);
+    const card=make(cards,'article','news-card news-card-rich');
+    card.dataset.setores=sectors.join(',');card.dataset.sector=String(sectors[0]||0);
+    card.dataset.status=str(story.categoria||'Notícia setorial');
+    card.dataset.search=searchLabel(story);
+    const media=anchor(card,'news-media','',url);
+    media.setAttribute('aria-label',`Abrir matéria: ${story.titulo}`);
+    const image=https(story.imagem);
+    if(image){
+      const img=make(media,'img','news-image');
+      img.src=image;img.alt='';img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
+      img.onerror=()=>{img.remove();media.classList.add('news-media-fallback');make(media,'span','news-media-source',brandName(story.fonte));};
+    }else{
+      media.classList.add('news-media-fallback');
+      make(media,'span','news-media-source',brandName(story.fonte));
     }
-    const dt=data.atualizado_em ? friendlyDate(data.atualizado_em) : 'Sem atualização';
-    if(updated)updated.textContent=`${news.length} notícias • coleta: ${dt}`;
-    if(!news.length){
-      empty('Ainda não há manchetes disponíveis. Se o site acabou de ser publicado, consulte Actions → Atualizar notícias e publicar Tabela SAJ → Run workflow.');
-      msg?.classList.add('warning');
-      if(msg)msg.textContent='Aguardando coleta de notícias';
-    } else {
-      msg?.classList.remove('warning');
-      if(msg)msg.textContent=`Coleta concluída em ${dt}.`;
+    make(media,'span','news-media-corner','VER MATÉRIA ↗');
+    const body=make(card,'div','news-body');
+    const meta=make(body,'div','news-meta');
+    make(meta,'span','news-status',story.categoria||'Notícia setorial');
+    const date=make(meta,'time','',dmy(story.publicado_em));
+    if(story.publicado_em)date.dateTime=story.publicado_em;
+    const heading=make(body,'h3','news-headline');
+    anchor(heading,'news-title-link',story.titulo,url);
+    if(story.descricao){make(body,'p','news-preview',str(story.descricao).slice(0,140));}
+    const badges=make(body,'div','news-sector-tags');
+    if(sectors.length){for(const i of sectors.slice(0,3)) make(badges,'span','news-sector-tag',sectorNames[i]);}
+    else make(badges,'span','news-sector-tag news-sector-general','Geral · sem setor identificado');
+    const bottom=make(body,'div','news-source');
+    make(bottom,'span','news-publisher',story.fonte||'Fonte pública');
+    anchor(bottom,'news-open','Ler notícia ↗',url);
+    return card;
+  }
+  function activeSector(){
+    return Number(sectorButtons.find(b=>b.classList.contains('active'))?.dataset.sector||0);
+  }
+  // Busca dedicada às notícias, independente da pesquisa na tabela jurídica.
+  const tools=document.querySelector('.live-news-tools');
+  let dedicated=document.getElementById('news-query');
+  if(tools && !dedicated){
+    const searchBox=make(tools,'label','news-search-wrap');
+    make(searchBox,'span','sr-only','Pesquisar somente nas notícias');
+    dedicated=make(searchBox,'input','news-search');
+    dedicated.type='search';dedicated.id='news-query';dedicated.placeholder='Pesquisar notícias…';
+    dedicated.autocomplete='off';
+    tools.insertBefore(searchBox,tools.querySelector('.news-tool-right'));
+  }
+  const emptyNotice=make(cards,'div','live-news-empty news-filter-empty');
+  emptyNotice.hidden=true;
+  const filterCounter=document.createElement('p');filterCounter.id='news-visible-count';
+  filterCounter.className='news-visible-count';cards.after(filterCounter);
+  function filterCards(){
+    if(!allLoaded)return 0;
+    const sector=activeSector();
+    const term=normal(dedicated?.value);
+    const global=normal(globalSearch?.value);
+    const kind=str(typeSelect?.value);
+    let shown=0;
+    cards.querySelectorAll('article.news-card').forEach(card=>{
+      const sectors=(card.dataset.setores||'').split(',').filter(Boolean);
+      const okay=(!sector||sectors.includes(String(sector))) &&
+        (!kind||card.dataset.status===kind) &&
+        (!term||card.dataset.search.includes(term)) &&
+        (!global||card.dataset.search.includes(global));
+      card.classList.toggle('hidden',!okay);
+      if(okay)shown++;
+    });
+    const total=cards.querySelectorAll('article.news-card').length;
+    filterCounter.textContent=`${shown} notícia${shown===1?'':'s'} exibida${shown===1?'':'s'} de ${total}`;
+    const topCount=document.getElementById('search-count');
+    if(topCount)topCount.textContent=topCount.textContent.replace(/\d+\s+(?:atualizações|notícias)/i,`${shown} notícias`);
+    if(total && !shown){
+      emptyNotice.textContent='Nenhuma notícia corresponde aos filtros selecionados. Experimente “Todos” ou limpe a pesquisa.';
+      emptyNotice.hidden=false;
+    }else{emptyNotice.hidden=true;}
+    return shown;
+  }
+  function render(data){
+    stories=Array.isArray(data.noticias)?data.noticias:[];
+    cards.replaceChildren();
+    cards.appendChild(emptyNotice);emptyNotice.hidden=true;
+    const valid=stories.map(createStory).filter(Boolean);
+    const collected=dmy(data.atualizado_em);
+    if(updated)updated.textContent=`${valid.length} notícias · ${collected}`;
+    if(msg){
+      msg.classList.toggle('warning',valid.length===0);
+      msg.textContent=valid.length?`Notícias coletadas em ${collected}`:'Nenhuma manchete encontrada na última coleta';
     }
     if(health){
-      const issues=(Array.isArray(data.fontes)?data.fontes:[]).filter(x=>x.situacao!=='ok');
-      health.textContent = issues.length
-        ? `Fontes temporariamente indisponíveis: ${issues.map(x=>x.nome).join(', ')}. O painel pode não incluir todas as novidades.`
-        : 'Monitoramento por RSS e fontes públicas. As notícias são metadados; a vigência jurídica exige conferência oficial.';
+      const bad=(Array.isArray(data.fontes)?data.fontes:[]).filter(f=>f.situacao!=='ok');
+      health.textContent=bad.length
+        ? `Algumas fontes não responderam: ${bad.map(f=>f.nome).join(', ')}. A cobertura pode estar incompleta.`
+        : 'Prévia por imagem fornecida na fonte pública (RSS ou metadados); ausência de imagem não significa falha. Verifique o ato oficial antes de atualizar a tabela.';
     }
-    if(window.SAJNewsRefresh)window.SAJNewsRefresh();
+    allLoaded=true;
+    // Mantém também o contador de pesquisa jurídica original atualizado.
+    window.SAJNewsRefresh?.();
+    filterCards();
+    if(!valid.length){
+      emptyNotice.textContent='Não há notícias nesta coleta. Confira a execução do workflow em Actions → Atualizar notícias e publicar Tabela SAJ.';
+      emptyNotice.hidden=false;
+    }
   }
-  async function load(){
-    if(msg)msg.textContent='Consultando últimas notícias publicadas…';
+  async function reloadNews(){
+    if(msg)msg.textContent='Lendo notícias publicadas…';
     try{
-      const response=await fetch(`data/news.json?v=${Date.now()}`,{cache:'no-store'});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      const data=await response.json();
-      if(!data || !Array.isArray(data.noticias))throw new Error('Formato JSON inesperado');
-      render(data);
-    }catch(err){
-      empty('Não foi possível carregar o arquivo de notícias. Confira se o site foi publicado no GitHub Pages e execute novamente o workflow.');
-      msg?.classList.add('warning');
-      if(msg)msg.textContent='Falha na leitura do feed';
-      if(health)health.textContent=`Erro de leitura: ${err.message}`;
+      const r=await fetch(`data/news.json?t=${Date.now()}`,{cache:'no-store'});
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      const json=await r.json();
+      if(!json || !Array.isArray(json.noticias))throw new Error('Formato inesperado de notícias');
+      render(json);
+    }catch(e){
+      cards.replaceChildren(emptyNotice);
+      emptyNotice.hidden=false;
+      emptyNotice.textContent='Não foi possível ler data/news.json. Confirme a publicação do site e o arquivo no repositório.';
+      filterCounter.textContent='';
+      if(msg){msg.textContent='Erro ao carregar manchetes';msg.classList.add('warning');}
+      if(health)health.textContent=`Falha de leitura: ${e.message}`;
     }
   }
-  select?.addEventListener('change',()=>window.SAJNewsRefresh?.());
-  reload?.addEventListener('click',load);
-  load();
+  // Os botões já alteram a classe "active" no HTML original; aqui atualizamos os cartões.
+  sectorButtons.forEach(b=>b.addEventListener('click',filterCards));
+  typeSelect?.addEventListener('change',filterCards);
+  dedicated?.addEventListener('input',filterCards);
+  globalSearch?.addEventListener('input',filterCards);
+  globalSearch?.addEventListener('search',filterCards);
+  document.getElementById('reset')?.addEventListener('click',()=>{if(dedicated)dedicated.value='';filterCards();});
+  reload?.addEventListener('click',reloadNews);
+  reloadNews();
 })();

@@ -52,6 +52,34 @@ class NewsCollectorTest(unittest.TestCase):
         self.assertEqual(len(result),1)
         self.assertIn('Google',status['via'])
 
+    def test_rss_image_preview(self):
+        rss=b'''<rss xmlns:media="http://search.yahoo.com/mrss/"><channel><item>
+        <title>ANTT publica resolucao ferroviaria</title>
+        <link>https://www.gov.br/antt/pt-br/noticias/123</link>
+        <media:thumbnail url="https://www.gov.br/antt/pt-br/imagens/capa.jpg"/>
+        <description>Publicacao sobre regras novas.</description>
+        </item></channel></rss>'''
+        one=c.parse_feed(rss)[0]
+        self.assertEqual(one['image'], 'https://www.gov.br/antt/pt-br/imagens/capa.jpg')
+        self.assertEqual(one['description'], 'Publicacao sobre regras novas.')
+
+    def test_og_preview_metadata(self):
+        src=json.loads(c.CONFIG.read_text())[1]
+        html=b'''<html><head><meta property="og:image" content="/imagens/noticia.jpg">
+        <meta property="og:description" content="Resumo da publicacao"></head></html>'''
+        pic,desc=c.og_preview(src,'https://www.gov.br/antt/pt-br/noticias/ato',getter=lambda _: html)
+        self.assertEqual(pic,'https://www.gov.br/imagens/noticia.jpg')
+        self.assertEqual(desc,'Resumo da publicacao')
+
+    def test_sector_disambiguation(self):
+        sources=json.loads(c.CONFIG.read_text())
+        antt,anp,infra=sources[1],sources[4],sources[5]
+        self.assertEqual(c.classify_sectors(antt,'ANTT autoriza ferrovia no interior'),[2])
+        self.assertEqual(c.classify_sectors(antt,'ANTT regulamenta pedagio em rodovias'),[3])
+        self.assertEqual(c.classify_sectors(antt,'ANTT inicia consulta publica de regras gerais'),[])
+        self.assertEqual(c.classify_sectors(anp,'ANP aprova regulamento de gasodutos'),[8])
+        self.assertEqual(c.classify_sectors(infra,'Agencias analisam novo marco legal'),[])
+
     def test_future_dates_not_publications(self):
         src=json.loads(c.CONFIG.read_text())[1]
         result,_=c.collect_source(src,getter=lambda _:SAMPLE_RSS,
