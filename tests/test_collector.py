@@ -80,6 +80,41 @@ class NewsCollectorTest(unittest.TestCase):
         self.assertEqual(c.classify_sectors(anp,'ANP aprova regulamento de gasodutos'),[8])
         self.assertEqual(c.classify_sectors(infra,'Agencias analisam novo marco legal'),[])
 
+    def test_manchetes_alheias_ficam_de_fora(self):
+        fontes={f['id']:f for f in json.loads(c.CONFIG.read_text())}
+        negatives=[
+          ('antt','ANTT orienta motoristas durante feriado nas rodovias'),
+          ('antt','ANTT divulga campanha educativa em ferrovias'),
+          ('anatel','Anatel promove evento sobre telefonia movel'),
+          ('aneel','ANEEL divulga dados de consumo de energia eletrica'),
+          ('anp','ANP amplia fiscalizacao em postos de combustiveis'),
+          ('infra','Agencias discutem os desafios do setor de infraestrutura'),
+          ('anac','ANAC anuncia novas vagas para servidores'),
+          ('anp','ANP publica nova regra de gas natural sem identificar atividade'),
+        ]
+        for src,titulo in negatives:
+            with self.subTest(titulo=titulo):
+                self.assertFalse(c.relevant(titulo, fontes[src]))
+
+    def test_atuacoes_normativas_por_setor(self):
+        fontes={f['id']:f for f in json.loads(c.CONFIG.read_text())}
+        positives=[
+          ('anatel','Anatel aprova resolucao sobre outorga de telecomunicacoes',[1]),
+          ('antt','ANTT publica resolucao sobre concessoes ferroviarias',[2]),
+          ('antt','ANTT abre consulta publica sobre revisao tarifaria de rodovias',[3]),
+          ('anac','ANAC aprova regulamento de concessoes aeroportuarias',[4]),
+          ('anac','ANAC abre audiencia publica sobre autorizacao de servicos aereos',[5]),
+          ('aneel','ANEEL publica resolucao normativa para distribuicao de energia eletrica',[6]),
+          ('anp','ANP publica resolucao sobre concessao e exploracao de petroleo',[7]),
+          ('anp','ANP aprova nova resolucao de tarifas de transporte de gas natural',[8]),
+          ('anp','ANP abre consulta publica sobre acesso a terminais de GNL',[9]),
+          ('infra','ANTT publica novo regulamento de concessoes ferroviarias',[2]),
+        ]
+        for src,titulo,setores in positives:
+            with self.subTest(titulo=titulo):
+                self.assertTrue(c.relevant(titulo, fontes[src]))
+                self.assertEqual(c.classify_sectors(fontes[src], titulo),setores)
+
     def test_future_dates_not_publications(self):
         src=json.loads(c.CONFIG.read_text())[1]
         result,_=c.collect_source(src,getter=lambda _:SAMPLE_RSS,

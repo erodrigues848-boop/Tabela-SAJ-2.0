@@ -46,3 +46,12 @@
 .news-card-rich .news-media:focus-visible,.news-card-rich .news-title-link:focus-visible,.news-card-rich .news-open:focus-visible{outline:3px solid #327663;outline-offset:2px}
 @media(max-width:780px){.news-grid{grid-template-columns:1fr}.news-card-rich .news-media{height:195px}.news-search-wrap{max-width:none;flex:1 1 100%}}
 @media print{.news-card-rich .news-media{height:105px!important}.news-card-rich .news-body{min-height:0}}
+
+/* Marcas reais (imagens públicas): jamais substituídas por desenho aproximado. */
+.agency-logo{width:184px;min-width:145px;max-height:none;filter:none!important}
+.agency-logo a{display:flex;align-items:center;justify-content:center;min-height:64px;gap:8px;text-decoration:none;color:#294d43}
+.agency-logo img{display:block;max-width:180px;max-height:65px;width:auto;height:auto;object-fit:contain;mix-blend-mode:multiply}
+.agency-logo .agency-fallback{display:none;font:750 20px/1.2 Arial,sans-serif;color:#294d43;letter-spacing:.02em}
+.agency-logo img.failed{display:none}
+.agency-logo img.failed + .agency-fallback{display:block}
+@media(max-width:620px){.agency-logo{width:140px}.agency-logo img{max-width:140px;max-height:54px}}

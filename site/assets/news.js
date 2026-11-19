@@ -38,6 +38,7 @@
   function createStory(story){
     const url=https(story.url);if(!url||!story.titulo)return null;
     const sectors=(Array.isArray(story.setores)?story.setores:[]).map(Number).filter(i=>i>=1&&i<=9);
+    if(!sectors.length)return null;
     const card=make(cards,'article','news-card news-card-rich');
     card.dataset.setores=sectors.join(',');card.dataset.sector=String(sectors[0]||0);
     card.dataset.status=str(story.categoria||'Notícia setorial');
@@ -115,7 +116,7 @@
     return shown;
   }
   function render(data){
-    stories=Array.isArray(data.noticias)?data.noticias:[];
+    stories=(Array.isArray(data.noticias)?data.noticias:[]).filter(x=>x.escopo==='normativo' && Array.isArray(x.setores) && x.setores.length>0);
     cards.replaceChildren();
     cards.appendChild(emptyNotice);emptyNotice.hidden=true;
     const valid=stories.map(createStory).filter(Boolean);
@@ -123,7 +124,7 @@
     if(updated)updated.textContent=`${valid.length} notícias · ${collected}`;
     if(msg){
       msg.classList.toggle('warning',valid.length===0);
-      msg.textContent=valid.length?`Notícias coletadas em ${collected}`:'Nenhuma manchete encontrada na última coleta';
+      msg.textContent=valid.length?`Notícias coletadas em ${collected}`:'Nenhuma atualização normativa aderente aos temas da tabela nesta coleta';
     }
     if(health){
       const bad=(Array.isArray(data.fontes)?data.fontes:[]).filter(f=>f.situacao!=='ok');
@@ -136,7 +137,7 @@
     window.SAJNewsRefresh?.();
     filterCards();
     if(!valid.length){
-      emptyNotice.textContent='Não há notícias nesta coleta. Confira a execução do workflow em Actions → Atualizar notícias e publicar Tabela SAJ.';
+      emptyNotice.textContent='Nenhuma publicação normativa diretamente relacionada à tabela foi identificada nesta coleta. Isso não significa ausência de mudanças; consulte também as fontes oficiais.';
       emptyNotice.hidden=false;
     }
   }
@@ -167,3 +168,6 @@
   reload?.addEventListener('click',reloadNews);
   reloadNews();
 })();
+
+// Evita marcas desenhadas/falsificadas quando imagens externas não carregam.
+document.querySelectorAll('.agency-logo img').forEach(img=>{img.addEventListener('error',()=>{if(img.dataset.backup&&!img.dataset.backupTried){img.dataset.backupTried='1';img.src=img.dataset.backup;return;}img.classList.add('failed');});});

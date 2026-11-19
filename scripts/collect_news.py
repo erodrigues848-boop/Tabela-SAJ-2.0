@@ -32,39 +32,69 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (compatible; SAJ-PainelRegulatorio/1.0; consulta-publica; +https://github.com)',
     'Accept': 'application/rss+xml,application/atom+xml,application/xml,text/xml;q=0.9,*/*;q=0.6',
 }
+# Filtro deliberadamente restritivo: só atos e mudanças de regime jurídico.
+# Não se aceita "energia", "transporte" ou a sigla da agência isoladamente.
 MAX_AGE_DAYS = 150
-MAX_PER_SOURCE = 15
-MAX_TOTAL = 70
-# HTML de manchetes publicado por fontes oficiais; nunca é obrigatório para a coleta.
+MAX_PER_SOURCE = 12
+MAX_TOTAL = 50
 MAX_OG_PER_SOURCE = 5
-KEYWORDS = (
-    'resoluc', 'normativ', 'regulament', 'legisl', 'decreto', 'portaria',
-    'consulta publica', 'audiencia publica', 'concess', 'autoriz', 'outorga',
-    'revisao tarifaria', 'tarifa', 'agencia', 'marco legal', 'seguranca operacional',
-    'contrato', 'lei ', 'fiscaliz', 'licitac', 'leilao', 'renov', 'prorrog',
-    'ferrovi', 'rodovi', 'aeroport', 'energia', 'gas natural', 'petroleo',
-    'telecomunic', 'publica', 'homologa', 'diretriz', 'transporte'
+
+# Temas correspondentes às colunas da Tabela SAJ.
+TABLE_TERMS = (
+    'concess', 'permiss', 'autoriz', 'outorga', 'licitac', 'leilao', 'edital',
+    'tarif', 'reajust', 'revisao', 'preco', 'remunerac', 'pedagio',
+    'revers', 'bens', 'prorrog', 'prazo contratual', 'vigencia de contrato',
+    'reequilibr', 'equilibrio economico-financeiro',
+    'investimento', 'plano de exploracao', 'metas de qualidade',
+    'indicador de qualidade', 'seguranca operacional', 'interconexao',
+    'universaliz', 'prestacao do servico', 'regras de acesso', 'acesso de terceiros',
+    'regime privado', 'regime publico', 'marco regulatorio', 'marco legal',
+    'estrutura tarifaria', 'regulamento de outorgas', 'regulamento de concessoes',
+    'qualidade do servico', 'atividade regulada', 'ferrovi', 'rodovi',
+    'aeroport', 'aerodromo', 'servico aereo', 'transporte aereo', 'telecomunic',
+    'eletric', 'gasoduto', 'gnl', 'estocagem', 'petroleo',
+)
+# Exige ocorrência de uma mudança normativa, proposta de regra, ou consulta.
+NORM_SIGNALS = (
+    'resolucao', 'resolucoes', 'normativo', 'normativa', 'nova norma',
+    'novas normas', 'regulament', 'decreto', 'portaria normativa',
+    'lei n', 'projeto de lei', 'medida provisoria', 'alteracao legislativa',
+    'marco legal', 'marco regulatorio', 'consulta publica',
+    'audiencia publica', 'tomada de subsidios', 'reuniao participativa',
+    'analise de impacto regulatorio', 'minuta', 'proposta de regras',
+    'nova regra', 'novas regras', 'mudanca de regras', 'revisao das regras',
+    'revisao regulatoria', 'regulacao de', 'regulacao para', 'regime tarifario',
+    'revisao tarifaria', 'prorrogacao contratual', 'reequilibrio contratual',
+    'reversao de bens', 'regras para outorga', 'regras de outorga',
+    'modelo regulatorio', 'reforma regulatoria',
+)
+SKIP_SIGNALS = (
+    'processo seletivo de servidores', 'concurso publico para', 'inscricoes para',
+    'cursos gratuitos', 'novo presidente', 'novo diretor', 'premiacao',
+    'campanha educativa', 'campanha de conscientizacao', 'mutirao',
+    'fiscalizacao em postos', 'operacao de fiscalizacao em postos',
+    'feriado prolongado', 'trafego intenso', 'dados de consumo',
 )
 SECTOR_KEYWORDS = {
-    1: ('anatel', 'telecom', 'telefonia', 'banda larga', 'espectro', '5g', 'radiofrequencia'),
-    2: ('ferrovi', 'trem', 'trilho', 'malha ferrovi', 'atf', 'ferrovia'),
-    3: ('rodovi', 'pedagio', 'onibus', 'fretamento', 'frete rodoviario', 'caminhao', 'br-'),
-    4: ('aeroporto', 'aerodromo', 'infraestrutura aeroportuaria'),
-    5: ('aviacao', 'aereo', 'aerea', 'aeronave', 'companhia aerea', 'voo', 'passageiros aereos'),
-    6: ('aneel', 'eletric', 'energia', 'geracao', 'transmissao', 'distribuicao', 'comercializacao'),
-    7: ('petroleo', 'combustiv', 'refin', 'oleo', 'pre sal', 'exploracao e producao'),
-    8: ('gasoduto', 'transporte de gas', 'transportador de gas', 'capacidade de transporte', 'malha de transporte de gas'),
-    9: ('gnl', 'estocagem', 'regaseific', 'liquefac', 'processamento de gas', 'acondicionamento de gas'),
+    1: ('telecomunic', 'telefonia', 'stfc', 'smp', 'scm', 'seac', 'banda larga', 'espectro', 'radiofrequenc'),
+    2: ('ferrovi', 'ferrovia', 'ferrovias', 'trilho', 'malha ferroviaria', 'rof 1', 'rof 2', 'transporte ferroviario'),
+    3: ('rodovi', 'rodovia', 'pedagio', 'rcr', 'transporte rodoviario', 'fretamento', 'semiurbano'),
+    4: ('aeroport', 'aerodromo', 'infraestrutura aeroportuaria', 'concessao aeroportuaria'),
+    5: ('servicos aereos', 'servico aereo', 'transporte aereo', 'transporte aeroviario', 'aviacao civil', 'empresa aerea', 'voo comercial'),
+    6: ('energia eletrica', 'setor eletrico', 'eletric', 'geracao de energia', 'transmissao de energia', 'distribuicao de energia', 'comercializacao de energia', 'tarifas de energia'),
+    7: ('petroleo', 'petrolif', 'exploracao e producao', 'pre-sal', 'pre sal', 'refino', 'refinaria', 'combustivel', 'royalties'),
+    8: ('gasoduto de transporte', 'gasodutos de transporte', 'transporte de gas natural', 'transporte de gas', 'transportadores de gas', 'transportador de gas', 'tarifa de transporte de gas', 'malha de gasodutos'),
+    9: ('estocagem de gas', 'estocagem subterranea', 'armazenamento subterraneo', 'liquefac', 'regaseific', 'terminal de gnl', 'terminais de gnl', 'acondicionamento de gas', 'processamento de gas', 'tratamento de gas', 'importacao de gas', 'exportacao de gas', 'escoamento da producao de gas', 'gasoduto de escoamento', 'gasodutos de escoamento'),
 }
 TERM_AREAS = {
     'Licitação e outorga': ('licitacao', 'leilao', 'outorga', 'concessao', 'autorizacao', 'permissao', 'edital'),
     'Prazo e prorrogação': ('prazo', 'prorrogacao', 'vigencia', 'renovacao', 'extensao'),
     'Tarifas e remuneração': ('tarifa', 'reajuste', 'remuneracao', 'preco', 'pedagio', 'revisao tarifaria'),
-    'Qualidade e segurança': ('qualidade', 'desempenho', 'fiscalizacao', 'seguranca', 'indicador'),
-    'Infraestrutura e investimentos': ('investimento', 'obras', 'infraestrutura', 'expansao', 'capacidade'),
-    'Normas gerais': ('resolucao', 'lei ', 'decreto', 'regulamento', 'norma', 'portaria'),
+    'Reversão e ativos': ('reversibilidade', 'reversao de bens', 'bens reversiveis'),
+    'Qualidade e segurança': ('qualidade', 'desempenho', 'fiscalizacao', 'seguranca operacional', 'indicador'),
+    'Infraestrutura e investimentos': ('investimento', 'obras de concessao', 'infraestrutura', 'capacidade'),
+    'Normas e consultas': ('resolucao', 'lei ', 'decreto', 'regulamento', 'norma', 'portaria', 'consulta publica', 'audiencia publica'),
 }
-
 
 def norm(text: str) -> str:
     text = unicodedata.normalize('NFD', text or '')
@@ -212,40 +242,49 @@ def classify_status(title: str) -> str:
         return 'Ato normativo: conferir vigência'
     if any(x in text for x in ('leilao', 'concessao', 'edital', 'contrato')):
         return 'Outorga / contrato'
-    return 'Notícia setorial'
+    return 'Ato normativo: conferir vigência'
 
 
 def classify_sectors(source: dict, title: str) -> list[int]:
-    """Nunca atribui a todos os setores uma manchete sem tema reconhecível."""
+    """Não deduzir setor a partir do nome da agência ou de 'gás natural' isolado."""
     text = norm(title)
-    match = [n for n in source['setores'] if any(term in text for term in SECTOR_KEYWORDS[n])]
-    if source['id'] == 'antt':
-        ferro = 2 in match
-        rodo = 3 in match
-        return ([2] if ferro else []) + ([3] if rodo else [])
+    candidates = [n for n in source['setores'] if any(term in text for term in SECTOR_KEYWORDS[n])]
     if source['id'] == 'anp':
-        # "gás natural" isolado não basta para decidir entre transporte e estocagem.
-        gas = 'gas natural' in text
-        specific = [n for n in match if n in (8, 9)]
-        if specific:
-            return specific
-        if gas and not any(t in text for t in ('petroleo', 'combustiv', 'refin', 'pre sal')):
-            return []
-        return [7] if 7 in match else []
-    if len(source['setores']) == 1:
-        return source['setores']
-    # Publicações amplas de agência/veículo ficam em "Todos" até identificarmos setor.
-    return match
+        # O gasoduto de ESCOAMENTO não é o gasoduto de TRANSPORTE.
+        # Notícias sobre gás em geral não entram sem atividade definida.
+        if 'gasodut' in text and 'escoamento' in text:
+            candidates = [n for n in candidates if n != 8]
+            candidates.append(9)
+        elif 'gasodut' in text and 8 not in candidates:
+            candidates.append(8)
+        return sorted(set(candidates))
+    if source['id'] == 'antt':
+        return [n for n in (2,3) if n in candidates]
+    if source['id'] == 'anac':
+        return [n for n in (4,5) if n in candidates]
+    if source['id'] in ('anatel','aneel'):
+        # Agência exclusivamente competente pelo respectivo setor listado.
+        return [source['setores'][0]]
+    return sorted(set(candidates))
 
 
 def areas(title: str) -> list[str]:
     text = norm(title)
-    return [area for area, keys in TERM_AREAS.items() if any(k in text for k in keys)][:3] or ['Acompanhamento setorial']
+    return [area for area, keys in TERM_AREAS.items() if any(k in text for k in keys)][:3] or ['Normas e consultas']
 
 
-def relevant(title: str) -> bool:
-    text = norm(title)
-    return any(term in text for term in KEYWORDS)
+def relevant(title: str, source: dict | None = None) -> bool:
+    """Dois sinais independentes: alteração normativa + tema próprio da tabela."""
+    t = norm(title)
+    if any(x in t for x in SKIP_SIGNALS):
+        return False
+    if not any(term in t for term in NORM_SIGNALS):
+        return False
+    if not any(term in t for term in TABLE_TERMS):
+        return False
+    if source is not None and not classify_sectors(source, title):
+        return False
+    return True
 
 
 def search_feed(query: str):
@@ -265,7 +304,7 @@ def collect_source(source: dict, *, getter=fetch, now: datetime | None = None):
             logs.append(f'RSS: {len(data)} entradas')
         except Exception as exc:
             logs.append(f'RSS indisponível ({type(exc).__name__})')
-    if not data or not any(relevant(entry['title']) for entry in data):
+    if not data or not any(relevant(entry['title'], source) for entry in data):
         channel = 'Busca de notícias (Google Notícias)'
         try:
             data = parse_feed(getter(search_feed(source['busca'])))
@@ -276,7 +315,7 @@ def collect_source(source: dict, *, getter=fetch, now: datetime | None = None):
     seen = set()
     og_tries = 0
     for item in data:
-        if not relevant(item['title']) or item['url'] in seen:
+        if not relevant(item['title'], source) or item['url'] in seen:
             continue
         date = item['date']
         if date:
@@ -304,9 +343,10 @@ def collect_source(source: dict, *, getter=fetch, now: datetime | None = None):
             'fonte': source['nome'],
             'canal': channel,
             'setores': classify_sectors(source, item['title']),
+            'escopo': 'normativo',
             'categoria': classify_status(item['title']),
             'temas': areas(item['title']),
-            'atencao': 'Triagem automática: verificar publicação, vigência e alcance antes de alterar a tabela.'
+            'atencao': 'Seleção de manchetes com possível impacto normativo; conferir ato e vigência antes de alterar a tabela.'
         })
         if len(result) >= MAX_PER_SOURCE:
             break

@@ -1,8 +1,8 @@
 {
   "atualizado_em": null,
-  "coleta": "aguardando primeira execução",
+  "coleta": "aguardando nova coleta estrita",
   "total": 0,
   "noticias": [],
   "fontes": [],
-  "aviso": "Painel ainda não atualizado. Publique pelo GitHub Actions para carregar notícias reais."
+  "aviso": "Conteúdo anterior removido para impedir exibição de notícias alheias ao escopo; executar workflow para atualizar."
 }
